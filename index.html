@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1d2330">
+<title>구구! 길 건너기</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23a5d46a'/%3E%3Cellipse cx='32' cy='38' rx='14' ry='17' fill='%23aab5c4'/%3E%3Ccircle cx='32' cy='20' r='10' fill='%235d6c84'/%3E%3Cpath d='M28 12 L36 12 L32 4 Z' fill='%232f3540'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1d2330; --paper:#fff8ea; --accent:#ff8a3d; --accent-dark:#d9641a;
+    --muted:#5c6475; --line:#e6dcc6;
+    --title:'Jua','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    --text:'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--ink);
+    font-family:var(--text);color:var(--ink);
+    overscroll-behavior:none;touch-action:none;user-select:none;-webkit-user-select:none}
+  #game{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+  /* 점수판 */
+  #hud{position:fixed;left:0;right:0;top:0;display:flex;align-items:flex-start;justify-content:space-between;
+    padding:calc(12px + env(safe-area-inset-top)) 14px 0;pointer-events:none}
+  #score{font-family:var(--title);font-size:56px;line-height:1;color:#fff;
+    text-shadow:0 3px 0 var(--ink),2px 0 0 var(--ink),-2px 0 0 var(--ink),0 -2px 0 var(--ink)}
+  .pill{display:flex;align-items:center;gap:8px;min-width:76px;height:44px;padding:0 14px;
+    background:var(--paper);border:3px solid var(--ink);border-radius:999px;
+    font-family:var(--title);font-size:22px;box-shadow:0 3px 0 var(--ink)}
+  .crumb{width:20px;height:15px;border-radius:5px;background:#f0c078;border:2.5px solid #b9772f;flex:none}
+  #mute{pointer-events:auto;justify-content:center;min-width:44px;width:48px;padding:0;cursor:pointer;color:var(--ink)}
+  #mute svg{width:24px;height:24px}
+  #mute .off{display:none}
+  #mute.muted .on{display:none}
+  #mute.muted .off{display:block}
+
+  /* 시작 / 게임 오버 카드 */
+  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;
+    background:rgba(29,35,48,.55)}
+  #overlay[hidden]{display:none}
+  .card{width:min(360px,100%);padding:22px 22px 24px;text-align:center;
+    background:var(--paper);border:3px solid var(--ink);border-radius:22px;box-shadow:0 8px 0 var(--ink)}
+  #mascot{width:104px;height:104px;margin:-4px auto 2px;display:block}
+  .eyebrow{margin:0;font-size:13px;font-weight:700;letter-spacing:.12em;color:var(--accent-dark)}
+  h1{margin:4px 0 14px;font-family:var(--title);font-weight:400;font-size:34px;line-height:1.15;word-break:keep-all}
+  .how{margin:0 0 18px;padding:0;list-style:none;text-align:left;font-size:15px;line-height:1.5;word-break:keep-all}
+  .how li{display:flex;gap:10px;padding:9px 2px;border-top:2px dashed var(--line)}
+  .how li:last-child{border-bottom:2px dashed var(--line)}
+  .how b{flex:none;width:52px;color:var(--accent-dark)}
+  .result{display:flex;margin:0 0 18px;border-top:2px dashed var(--line);border-bottom:2px dashed var(--line)}
+  .result div{flex:1;padding:12px 0}
+  .result div+div{border-left:2px dashed var(--line)}
+  .result b{display:block;font-family:var(--title);font-weight:400;font-size:34px;line-height:1.1}
+  .result span{font-size:13px;color:var(--muted)}
+  .new{display:inline-block;margin:0 0 16px;padding:5px 14px;border-radius:999px;
+    background:var(--ink);color:#ffd166;font-family:var(--title);font-size:17px}
+  #startBtn{width:100%;height:58px;border:3px solid var(--ink);border-radius:16px;cursor:pointer;
+    background:var(--accent);color:var(--ink);font-family:var(--title);font-size:24px;
+    box-shadow:0 5px 0 var(--ink);transition:transform .06s,box-shadow .06s}
+  #startBtn:active{transform:translateY(4px);box-shadow:0 1px 0 var(--ink)}
+  #startBtn:focus-visible,#mute:focus-visible{outline:3px solid #4dabf7;outline-offset:3px}
+
+  /* 시작 화면 오른쪽 아래 버튼 (상점 / 스킨) */
+  .corner{position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));
+    display:flex;gap:10px}
+  #overlay.over .corner{display:none}                 /* 게임 오버 화면에서는 숨김 */
+  .corner button{width:62px;height:62px;padding:6px 0 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+    border:3px solid var(--ink);border-radius:15px;cursor:pointer;color:var(--ink);
+    background:var(--paper);font-family:var(--title);font-size:14px;box-shadow:0 4px 0 var(--ink);
+    transition:transform .06s,box-shadow .06s}
+  .corner button svg{width:24px;height:24px}
+  #shopBtn,#skinBtn{background:#d5d9e0}
+  .corner button:active{transform:translateY(4px);box-shadow:0 1px 0 var(--ink)}
+
+  /* 상점 / 스킨 창 */
+  #panel{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;
+    background:rgba(29,35,48,.6)}
+  #panel[hidden]{display:none}
+  .sheet{width:min(400px,100%);max-height:min(560px,100%);display:flex;flex-direction:column;
+    background:var(--paper);border:3px solid var(--ink);border-radius:22px;box-shadow:0 8px 0 var(--ink);overflow:hidden}
+  .sheet header{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 12px 22px;
+    border-bottom:3px solid var(--ink)}
+  .sheet h2{margin:0;font-family:var(--title);font-weight:400;font-size:28px}
+  #panelClose{width:44px;height:44px;border:3px solid var(--ink);border-radius:12px;background:#fff;
+    cursor:pointer;color:var(--ink);display:flex;align-items:center;justify-content:center}
+  #panelClose svg{width:20px;height:20px}
+  #panelBody{padding:20px 22px 24px;overflow-y:auto}
+  .empty{padding:28px 10px;text-align:center;border:2px dashed var(--line);border-radius:16px;color:var(--muted)}
+  .empty b{display:block;margin-bottom:4px;font-family:var(--title);font-weight:400;font-size:22px;color:var(--ink)}
+  .items{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px}
+  .items button{min-height:100px;border:3px solid var(--ink);border-radius:14px;background:#fff;cursor:pointer;
+    font-family:var(--title);font-size:16px;color:var(--ink)}
+  .corner button:focus-visible,#panelClose:focus-visible,.items button:focus-visible{outline:3px solid #4dabf7;outline-offset:3px}
+
+  @media (max-height:520px){
+    .corner button{width:52px;height:52px;font-size:12px} .corner button svg{width:20px;height:20px}
+    #mascot{width:64px;height:64px} h1{font-size:26px;margin-bottom:8px}
+    .how li{padding:5px 2px} .how,.result{margin-bottom:12px} #score{font-size:42px}
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div class="pill" aria-label="모은 빵 부스러기"><i class="crumb"></i><span id="crumbN">0</span></div>
+  <div id="score" aria-label="점수">0</div>
+  <button id="mute" class="pill" aria-label="소리 끄기/켜기">
+    <svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+    <svg class="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M17 9.5l5 5M22 9.5l-5 5"/></svg>
+  </button>
+</div>
+
+<div id="overlay">
+  <div class="card">
+    <canvas id="mascot" width="208" height="208"></canvas>
+    <p class="eyebrow" id="ovEyebrow">도시 비둘기의 대모험</p>
+    <h1 id="ovTitle">구구! 길 건너기</h1>
+    <div id="ovBody">
+      <ul class="how">
+        <li><b>키보드</b><span>방향키 / WASD</span></li>
+        <li><b>터치</b><span>톡 = 앞으로, 밀기 = 그 방향</span></li>
+        <li><b>주의</b><span>차·기차 피하고, 강은 통나무로</span></li>
+      </ul>
+    </div>
+    <button id="startBtn">시작하기</button>
+  </div>
+  <div class="corner">
+    <button id="shopBtn" aria-label="상점 열기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16l-1.2 11H5.2z"/><path d="M8.5 9V7a3.5 3.5 0 0 1 7 0v2"/></svg>
+      상점
+    </button>
+    <button id="skinBtn" aria-label="스킨 고르기 열기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3.5 4 6l1.5 4.5L8 9.5V20h8V9.5l2.5 1L20 6l-5-2.5a3 3 0 0 1-6 0z"/></svg>
+      스킨
+    </button>
+  </div>
+</div>
+
+<div id="panel" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="panelTitle">
+    <header>
+      <h2 id="panelTitle">상점</h2>
+      <button id="panelClose" aria-label="닫기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </header>
+    <div id="panelBody"></div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   구구! 길 건너기  —  파일 하나(index.html)로 돌아가는 캔버스 게임
+   좌표: x = 칸(가운데가 0), y = 줄 번호(앞으로 갈수록 커짐)
+   ===================================================================== */
+
+// ---------- 설정 ----------
+const TRACK = 12;        // 차·통나무가 도는 구간 (x = -12 ~ 12, 화면 밖에서 돌아옴)
+const MAX_HALF = 6;      // 가운데에서 양옆으로 최대 몇 칸까지 보여줄지
+const HOP_TIME = 0.1;    // 한 칸 뛰는 데 걸리는 시간(초)
+const BEST_KEY = 'googoo-best', MUTE_KEY = 'googoo-mute';
+const POOP_START = 0.12, POOP_END = 0.7;   // 죽은 뒤 똥 싸기 시작/끝 시간(초)
+
+const CAR_COLORS = ['#ff6b6b', '#ffd166', '#4dabf7', '#b197fc', '#ffa94d', '#63e6be'];
+const TRUCK_COLORS = ['#f06595', '#339af0', '#20c997', '#fcc419'];
+const REASON = {
+  car: '차에 치였어요!', train: '기차에 치였어요!', water: '물에 빠졌어요!',
+  swept: '통나무 타고 떠내려갔어요!', slow: '너무 꾸물거렸어요!'
+};
+
+// ---------- 캔버스 ----------
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+let W = 0, H = 0, cell = 60, half = 3, dpr = 1;
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  cell = Math.max(30, Math.min(84, Math.floor(Math.min(H / 11, W / 7))));
+  half = Math.max(3, Math.min(MAX_HALF, Math.floor((W / cell - 1) / 2)));
+}
+addEventListener('resize', resize);
+
+const X = x => W / 2 + x * cell;                 // 칸 → 화면 x
+const Y = y => H - (y - cam + 0.5) * cell;       // 줄 → 화면 y
+
+// ---------- 도우미 ----------
+const rand = (a, b) => a + Math.random() * (b - a);
+const randi = (a, b) => Math.floor(rand(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const hash = (a, b) => ((a * 73856093) ^ (b * 19349663)) >>> 0;
+
+function rr(g, x, y, w, h, r) {                  // 둥근 사각형 경로
+  r = Math.min(r, w / 2, h / 2);
+  g.beginPath();
+  g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+function oval(g, x, y, rx, ry) { g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); }
+
+// ---------- 게임 상태 ----------
+let rows = new Map(), topRow = 0, plan = { type: 'grass', left: 0 };
+let bird, cam = -3, score = 0, crumbs = 0, best = 0;
+let state = 'ready';     // ready(대기) | play(진행) | dead(끝)
+let started = false, time = 0, deadAt = 0, overShown = false, particles = [];
+
+try { best = Number(localStorage.getItem(BEST_KEY)) || 0; } catch (e) {}
+
+const level = () => Math.min(1, Math.max(0, topRow) / 160);   // 0 → 1 로 점점 어려워짐
+
+// ---------- 맵 만들기 ----------
+function nextType(r) {
+  if (plan.left > 0) { plan.left--; return plan.type; }
+  const d = level(); let type;
+  if (plan.type === 'grass') {
+    const k = Math.random();
+    type = k < 0.5 ? 'road' : k < 0.82 ? 'river' : 'rail';
+  } else if (Math.random() < 0.62) type = 'grass';
+  else type = pick(['road', 'river', 'rail'].filter(t => t !== plan.type));
+  if (r < 10 && type === 'rail') type = 'road';              // 초반엔 기차 없음
+  const len = type === 'road' ? randi(1, 2 + Math.round(d * 3))
+            : type === 'river' ? randi(1, 2 + Math.round(d * 2))
+            : type === 'rail' ? 1 : randi(1, 2);
+  plan = { type, left: len - 1 };
+  return type;
+}
+
+// 잔디 두 줄이 붙어 있을 때 나무 때문에 길이 완전히 막히지 않게 정리
+function keepPathOpen(row, prev) {
+  if (!prev || prev.type !== 'grass') return;
+  for (let h = 3; h <= MAX_HALF; h++) {
+    let c = -h;
+    while (c <= h) {
+      if (prev.trees.has(c)) { c++; continue; }
+      const s = c; let ok = false;
+      while (c <= h && !prev.trees.has(c)) { if (!row.trees.has(c)) ok = true; c++; }
+      if (!ok) row.trees.delete(s + Math.floor((c - s) / 2));
+    }
+  }
+}
+
+function makeRow(r) {
+  const row = { r, type: 'grass', trees: new Set(), items: [], crumb: null, dir: 1, speed: 0 };
+  const prev = rows.get(r - 1), d = level();
+
+  if (r <= 3) {                                               // 출발 지점은 안전한 잔디
+    const density = r < 0 ? 0.55 : 0.16;
+    for (let c = -MAX_HALF; c <= MAX_HALF; c++) if (Math.random() < density) row.trees.add(c);
+    if (r >= 0) { row.trees.delete(0); keepPathOpen(row, prev); }
+    return row;
+  }
+
+  row.type = nextType(r);
+
+  if (row.type === 'grass') {
+    let inner = 0;
+    for (let c = -MAX_HALF; c <= MAX_HALF; c++) {
+      if (Math.random() < 0.2 + 0.12 * d) {
+        if (Math.abs(c) <= 3 && ++inner > 4) continue;       // 가운데 7칸엔 최대 4그루
+        row.trees.add(c);
+      }
+    }
+    keepPathOpen(row, prev);
+  } else if (row.type === 'road') {
+    row.dir = pick([1, -1]);
+    row.speed = rand(1.6, 2.6 + 2.6 * d);
+    let x = -TRACK + rand(0, 2);
+    while (x < TRACK - 5) {
+      const big = Math.random() < 0.22, len = big ? 2.5 : 1.5;
+      row.items.push({ x, len, big, color: pick(big ? TRUCK_COLORS : CAR_COLORS) });
+      x += len + rand(3.2 - 1.2 * d, 7.5 - 2.5 * d);
+    }
+  } else if (row.type === 'river') {
+    row.dir = prev && prev.type === 'river' ? -prev.dir : pick([1, -1]);
+    row.speed = rand(1.1, 1.9 + 1.2 * d);
+    let x = -TRACK + rand(0, 1.5);
+    while (x < TRACK - 6) {
+      const len = randi(2, d > 0.6 ? 3 : 4);
+      row.items.push({ x, len });
+      x += len + rand(1.6, 3.2 + d);
+    }
+  } else {                                                    // 기찻길
+    row.dir = pick([1, -1]);
+    row.train = { x: 0, len: 15, speed: 26, wait: rand(2, 5), on: false };
+  }
+
+  if ((row.type === 'grass' || row.type === 'road') && Math.random() < 0.24) {
+    const c = randi(-3, 3);
+    if (!row.trees.has(c)) row.crumb = c;                     // 빵 부스러기
+  }
+  return row;
+}
+
+function reset() {
+  rows.clear(); particles = [];
+  plan = { type: 'grass', left: 0 };
+  topRow = -7; cam = -3; score = 0; crumbs = 0; started = false; overShown = false;
+  bird = { x: 0, y: 0, row: 0, face: 0, hop: false, ht: 0, sx: 0, sy: 0, tx: 0, ty: 0,
+           log: null, off: 0, slot: 0, queue: null, dead: null };
+  fillRows(); updateHud();
+}
+
+function fillRows() {
+  const need = Math.ceil(cam + H / cell) + 3;
+  while (topRow < need) { topRow++; rows.set(topRow, makeRow(topRow)); }
+  for (const k of rows.keys()) if (k < cam - 6) rows.delete(k);
+}
+
+// ---------- 이동 ----------
+function tryMove(dx, dy) {
+  if (state !== 'play') return;
+  if (bird.hop) { bird.queue = [dx, dy]; return; }            // 뛰는 중이면 다음 입력으로 예약
+  bird.face = dx > 0 ? 1 : dx < 0 ? 3 : dy > 0 ? 0 : 2;
+  const tr = bird.row + dy;
+  if (tr < 0) return;
+  const trow = rows.get(tr);
+  let tx = bird.x + dx;
+  if (trow.type !== 'river') tx = Math.round(tx);
+  if (Math.abs(Math.round(tx)) > half) return;                // 화면 밖으로는 못 감
+  if (trow.type === 'grass' && trow.trees.has(tx)) return;    // 나무·바위에 막힘
+  Object.assign(bird, { hop: true, ht: 0, sx: bird.x, sy: bird.y, tx, ty: tr, row: tr, log: null });
+  started = true;
+  sfx.hop();
+}
+
+function land() {
+  const row = rows.get(bird.row);
+  if (row.type === 'river') {
+    const log = row.items.find(l => bird.x > l.x - 0.2 && bird.x < l.x + l.len + 0.2);
+    if (!log) return die('water');
+    bird.log = log;
+    bird.off = bird.x - log.x;
+    bird.slot = Math.max(0, Math.min(log.len - 1, Math.round(bird.off - 0.5))) + 0.5;
+  } else bird.x = Math.round(bird.x);
+
+  if (row.crumb !== null && row.crumb === Math.round(bird.x)) {
+    row.crumb = null; crumbs++; sfx.crumb();
+  }
+  if (bird.row > score) score = bird.row;
+  updateHud();
+  if (bird.queue) { const q = bird.queue; bird.queue = null; tryMove(q[0], q[1]); }
+}
+
+function die(reason) {
+  if (state !== 'play') return;
+  state = 'dead'; deadAt = time; bird.dead = reason; bird.hop = false; bird.queue = null;
+  const wet = reason === 'water';
+  // 꼬리 쪽(바라보는 방향의 반대편)에 똥 위치 정하기
+  const back = [[0, -1], [-1, 0], [0, 1], [1, 0]][bird.face];
+  bird.poop = { x: bird.x + back[0] * 0.5, y: bird.y + back[1] * 0.5 };
+  setTimeout(sfx.poop, POOP_START * 1000);
+  for (let i = 0; i < 14; i++) particles.push({
+    x: bird.x, y: bird.y, vx: rand(-2.6, 2.6), vy: rand(-1.2, 3), rot: rand(0, 6.28), vr: rand(-9, 9),
+    life: rand(0.6, 1.1), t: 0, wet,
+    color: wet ? pick(['#e3f6fe', '#b9e6f8']) : pick(['#aab5c4', '#93a0b2', '#e2e7ee', '#5d6c84'])
+  });
+  wet ? sfx.splash() : sfx.die();
+  bird.newBest = score > best;
+  if (bird.newBest) { best = score; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
+  onGameOver(score, crumbs);
+}
+
+// 나중에 Firebase 랭킹을 붙이고 싶으면 여기에서 점수를 저장하면 돼요.
+function onGameOver(finalScore, finalCrumbs) {}
+
+// ---------- 매 프레임 계산 ----------
+function update(dt) {
+  time += dt;
+  fillRows();
+
+  for (const row of rows.values()) {
+    if (row.type === 'road' || row.type === 'river') {
+      for (const it of row.items) {
+        it.x += row.dir * row.speed * dt;
+        if (it.x > TRACK) it.x -= 2 * TRACK; else if (it.x + it.len < -TRACK) it.x += 2 * TRACK;
+      }
+    } else if (row.type === 'rail') {
+      const t = row.train;
+      if (t.on) {
+        t.x += row.dir * t.speed * dt;
+        if (row.dir > 0 ? t.x > TRACK : t.x + t.len < -TRACK) { t.on = false; t.wait = rand(2.5, 6); }
+      } else if ((t.wait -= dt) <= 0) { t.on = true; t.x = row.dir > 0 ? -TRACK - t.len : TRACK; }
+    }
+  }
+
+  for (const p of particles) {
+    p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+    p.vx *= 0.97; p.vy -= 2.2 * dt;
+  }
+  particles = particles.filter(p => p.t < p.life);
+
+  if (state === 'dead') {
+    // 똥 싸는 장면이 끝나고 1초 뒤에 게임 오버 화면
+    if (!overShown && time - deadAt > POOP_END + 1) { overShown = true; showOver(); }
+    return;
+  }
+
+  if (bird.hop) {
+    bird.ht += dt / HOP_TIME;
+    const k = Math.min(1, bird.ht);
+    bird.x = bird.sx + (bird.tx - bird.sx) * k;
+    bird.y = bird.sy + (bird.ty - bird.sy) * k;
+    if (k >= 1) { bird.hop = false; land(); }
+  } else if (bird.log) {                                      // 통나무에 실려 감
+    bird.off += (bird.slot - bird.off) * Math.min(1, dt * 14);
+    bird.x = bird.log.x + bird.off;
+    if (Math.abs(bird.x) > half + 0.55) die('swept');
+  }
+
+  if (state !== 'play') return;
+
+  const row = rows.get(bird.row), L = bird.x - 0.26, R = bird.x + 0.26;
+  if (row.type === 'road') {
+    for (const c of row.items) if (R > c.x + 0.1 && L < c.x + c.len - 0.1) { die('car'); break; }
+  } else if (row.type === 'rail' && row.train.on) {
+    const t = row.train;
+    if (R > t.x + 0.1 && L < t.x + t.len - 0.1) die('train');
+  }
+
+  // 카메라: 비둘기를 따라가고, 가만히 있으면 천천히 밀고 올라옴
+  if (started) cam += (0.28 + 0.5 * Math.min(1, score / 160)) * dt;
+  const target = bird.y - 3;
+  if (target > cam) cam += (target - cam) * Math.min(1, dt * 6);
+  if (bird.y < cam - 0.7) die('slow');
+}
+
+// ---------- 그리기 ----------
+function drawGround(row) {
+  const y = Y(row.r) - cell / 2, x0 = X(-half - 0.5), w = (2 * half + 1) * cell;
+  const up = rows.get(row.r + 1), down = rows.get(row.r - 1);
+
+  if (row.type === 'grass') {
+    ctx.fillStyle = row.r & 1 ? '#a5d46a' : '#9bcb60';
+    ctx.fillRect(x0, y, w, cell + 1);
+  } else if (row.type === 'road') {
+    ctx.fillStyle = '#50545f'; ctx.fillRect(x0, y, w, cell + 1);
+    if (up && up.type === 'road') {
+      ctx.strokeStyle = '#8d93a1'; ctx.lineWidth = Math.max(2, cell * 0.045);
+      ctx.setLineDash([cell * 0.38, cell * 0.38]);
+      ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + w, y); ctx.stroke(); ctx.setLineDash([]);
+    } else { ctx.fillStyle = '#d6d9df'; ctx.fillRect(x0, y, w, cell * 0.07); }
+    if (!down || down.type !== 'road') { ctx.fillStyle = '#d6d9df'; ctx.fillRect(x0, y + cell * 0.93, w, cell * 0.07 + 1); }
+  } else if (row.type === 'river') {
+    ctx.fillStyle = '#59bfe8'; ctx.fillRect(x0, y, w, cell + 1);
+    ctx.strokeStyle = '#9adcf5'; ctx.lineWidth = Math.max(2, cell * 0.05);
+    for (let i = 0; i < 5; i++) {                             // 물결
+      const span = 2 * MAX_HALF + 3;
+      let rx = (i * 3.3 + (row.r * 1.7) % 3 + time * row.dir * 0.5) % span;
+      if (rx < 0) rx += span;
+      rx -= span / 2;
+      const ry = y + cell * (0.28 + 0.44 * ((i * 7 + row.r) % 3) / 2);
+      ctx.beginPath(); ctx.moveTo(X(rx), ry); ctx.lineTo(X(rx + 0.45), ry); ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = '#bca98f'; ctx.fillRect(x0, y, w, cell + 1);
+    ctx.fillStyle = '#7a6652';
+    for (let c = -half - 0.5; c < half + 0.5; c += 0.5) ctx.fillRect(X(c + 0.17), y + cell * 0.14, cell * 0.16, cell * 0.72);
+    ctx.fillStyle = '#e3e5ea';
+    ctx.fillRect(x0, y + cell * 0.25, w, cell * 0.07); ctx.fillRect(x0, y + cell * 0.68, w, cell * 0.07);
+  }
+}
+
+function drawTree(c, r) {
+  const x = X(c), y = Y(r), h = hash(c + 50, r + 50);
+  ctx.fillStyle = 'rgba(0,0,0,.16)'; oval(ctx, x + cell * 0.04, y + cell * 0.2, cell * 0.36, cell * 0.2); ctx.fill();
+  if (h % 5 === 0) {                                          // 바위
+    ctx.fillStyle = '#8f96a3'; rr(ctx, x - cell * 0.32, y - cell * 0.24, cell * 0.64, cell * 0.46, cell * 0.18); ctx.fill();
+    ctx.fillStyle = '#aab0bb'; rr(ctx, x - cell * 0.24, y - cell * 0.2, cell * 0.3, cell * 0.18, cell * 0.09); ctx.fill();
+    return;
+  }
+  const s = cell * (0.37 + (h % 7) * 0.012);
+  ctx.fillStyle = '#3f8f4d'; oval(ctx, x, y - cell * 0.1, s, s); ctx.fill();
+  ctx.fillStyle = '#58ab60'; oval(ctx, x - s * 0.18, y - cell * 0.1 - s * 0.2, s * 0.66, s * 0.62); ctx.fill();
+  ctx.fillStyle = '#7cc47a'; oval(ctx, x - s * 0.3, y - cell * 0.1 - s * 0.36, s * 0.26, s * 0.22); ctx.fill();
+}
+
+function drawCrumb(row) {
+  const x = X(row.crumb), y = Y(row.r) + Math.sin(time * 4 + row.r) * cell * 0.035;
+  ctx.fillStyle = 'rgba(0,0,0,.18)'; oval(ctx, x, Y(row.r) + cell * 0.2, cell * 0.16, cell * 0.06); ctx.fill();
+  ctx.fillStyle = '#f0c078'; ctx.strokeStyle = '#b9772f'; ctx.lineWidth = Math.max(2, cell * 0.045);
+  rr(ctx, x - cell * 0.16, y - cell * 0.12, cell * 0.32, cell * 0.24, cell * 0.08); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fbe3b6'; oval(ctx, x - cell * 0.05, y - cell * 0.03, cell * 0.04, cell * 0.03); ctx.fill();
+}
+
+function drawCar(it, row) {
+  const x = X(it.x + 0.1), w = (it.len - 0.2) * cell, h = cell * 0.62, y = Y(row.r) - h / 2, f = row.dir > 0;
+  ctx.fillStyle = 'rgba(0,0,0,.22)'; rr(ctx, x + cell * 0.03, y + cell * 0.1, w, h, cell * 0.16); ctx.fill();
+  if (it.big) {                                               // 트럭: 운전석 + 짐칸
+    const cab = cell * 0.68, bx = f ? x : x + cab - cell * 0.06;
+    ctx.fillStyle = '#eef0f3'; rr(ctx, bx, y, w - cab + cell * 0.06, h, cell * 0.1); ctx.fill();
+    ctx.fillStyle = '#cfd4db'; ctx.fillRect(bx + cell * 0.12, y + h * 0.46, w - cab - cell * 0.18, h * 0.08);
+    const cx = f ? x + w - cab : x;
+    ctx.fillStyle = it.color; rr(ctx, cx, y + h * 0.04, cab, h * 0.92, cell * 0.16); ctx.fill();
+    ctx.fillStyle = '#2b3140'; rr(ctx, f ? cx + cab * 0.42 : cx + cab * 0.2, y + h * 0.16, cab * 0.38, h * 0.68, cell * 0.06); ctx.fill();
+  } else {
+    ctx.fillStyle = it.color; rr(ctx, x, y, w, h, cell * 0.18); ctx.fill();
+    ctx.fillStyle = '#2b3140'; rr(ctx, x + w * 0.2, y + h * 0.13, w * 0.6, h * 0.74, cell * 0.1); ctx.fill();
+    ctx.fillStyle = it.color; rr(ctx, x + w * 0.35, y + h * 0.13, w * 0.3, h * 0.74, cell * 0.04); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fillRect(x + w * 0.35, y + h * 0.13, w * 0.3, h * 0.2);
+  }
+  const fx = f ? x + w - cell * 0.07 : x, bxx = f ? x : x + w - cell * 0.05;
+  ctx.fillStyle = '#fff3b0'; ctx.fillRect(fx, y + h * 0.14, cell * 0.07, h * 0.18); ctx.fillRect(fx, y + h * 0.68, cell * 0.07, h * 0.18);
+  ctx.fillStyle = '#e03131'; ctx.fillRect(bxx, y + h * 0.16, cell * 0.05, h * 0.14); ctx.fillRect(bxx, y + h * 0.7, cell * 0.05, h * 0.14);
+}
+
+function drawLog(it, row) {
+  const x = X(it.x + 0.06), w = (it.len - 0.12) * cell, h = cell * 0.62, y = Y(row.r) - h / 2;
+  ctx.fillStyle = 'rgba(20,70,110,.25)'; rr(ctx, x + cell * 0.03, y + cell * 0.09, w, h, cell * 0.2); ctx.fill();
+  ctx.fillStyle = '#8e5f31'; rr(ctx, x, y, w, h, cell * 0.2); ctx.fill();
+  ctx.fillStyle = '#a9743f'; rr(ctx, x, y, w, h * 0.82, cell * 0.2); ctx.fill();
+  ctx.strokeStyle = '#8e5f31'; ctx.lineWidth = Math.max(2, cell * 0.04);
+  for (let i = 0; i < it.len; i++) {
+    const bx = x + (i + 0.3) * cell, by = y + h * (i % 2 ? 0.3 : 0.52);
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + cell * 0.34, by); ctx.stroke();
+  }
+  ctx.fillStyle = '#d6a66e'; oval(ctx, x + w - cell * 0.13, y + h * 0.42, cell * 0.08, h * 0.3); ctx.fill();
+}
+
+function drawRail(row) {
+  const t = row.train, y = Y(row.r), warn = t.on || t.wait < 1.1;
+  for (const sd of [-1, 1]) {                                 // 신호등
+    const sx = X(sd * (half + 0.18)), sy = y + cell * 0.3;
+    ctx.fillStyle = '#2b3140'; oval(ctx, sx, sy, cell * 0.15, cell * 0.15); ctx.fill();
+    const lit = warn && Math.sin(time * 16) > 0;
+    if (lit) { ctx.fillStyle = 'rgba(255,60,60,.3)'; oval(ctx, sx, sy, cell * 0.3, cell * 0.3); ctx.fill(); }
+    ctx.fillStyle = lit ? '#ff3b3b' : warn ? '#7a2424' : '#596072';
+    oval(ctx, sx, sy, cell * 0.09, cell * 0.09); ctx.fill();
+  }
+  if (!t.on) return;
+  const h = cell * 0.76, n = Math.round(t.len / 3);
+  for (let i = 0; i < n; i++) {
+    const x = X(t.x + i * 3 + 0.05), w = cell * 2.9, front = row.dir > 0 ? i === n - 1 : i === 0;
+    ctx.fillStyle = 'rgba(0,0,0,.22)'; rr(ctx, x + cell * 0.03, y - h / 2 + cell * 0.1, w, h, cell * 0.12); ctx.fill();
+    ctx.fillStyle = front ? '#d9452f' : '#ef6a4f'; rr(ctx, x, y - h / 2, w, h, cell * 0.14); ctx.fill();
+    ctx.fillStyle = '#ffe9a8'; rr(ctx, x + cell * 0.2, y - h * 0.2, w - cell * 0.4, h * 0.4, cell * 0.06); ctx.fill();
+    ctx.fillStyle = front ? '#d9452f' : '#ef6a4f';
+    for (let k = 1; k < 4; k++) ctx.fillRect(x + w * k / 4 - cell * 0.04, y - h * 0.2, cell * 0.08, h * 0.4);
+  }
+}
+
+// 비둘기: 원점 기준으로 위쪽(-y)을 바라보게 그림. s = 한 칸 크기
+function drawPigeon(g, s, flap, bob) {
+  // 꼬리
+  g.fillStyle = '#6b7687';
+  g.beginPath(); g.moveTo(-0.09 * s, 0.16 * s); g.lineTo(0.09 * s, 0.16 * s);
+  g.lineTo(0.13 * s, 0.4 * s); g.lineTo(-0.13 * s, 0.4 * s); g.closePath(); g.fill();
+  g.fillStyle = '#3d4553'; g.fillRect(-0.13 * s, 0.34 * s, 0.26 * s, 0.06 * s);
+  // 몸통
+  g.fillStyle = '#aab5c4'; oval(g, 0, 0.04 * s, 0.19 * s, 0.26 * s); g.fill();
+  // 날개 (뛸 때 양옆으로 펼쳐짐) — 검은 줄무늬 두 개
+  for (const sd of [-1, 1]) {
+    g.save(); g.translate(sd * 0.11 * s, -0.08 * s); g.rotate(-sd * (0.1 + flap * 1.05));
+    oval(g, sd * 0.03 * s, 0.17 * s, 0.1 * s, 0.22 * s);
+    g.fillStyle = '#93a0b2'; g.fill(); g.clip();
+    g.fillStyle = '#3d4553';
+    g.fillRect(-0.14 * s, 0.19 * s, 0.28 * s, 0.04 * s); g.fillRect(-0.14 * s, 0.28 * s, 0.28 * s, 0.04 * s);
+    g.restore();
+  }
+  // 목덜미의 초록·보라 빛
+  const grd = g.createLinearGradient(-0.15 * s, 0, 0.15 * s, 0);
+  grd.addColorStop(0, '#35b58d'); grd.addColorStop(1, '#8e63d2');
+  g.fillStyle = grd; oval(g, 0, -0.13 * s, 0.145 * s, 0.11 * s); g.fill();
+  // 머리, 부리, 눈
+  const hy = -0.24 * s - bob;
+  g.fillStyle = '#2f3540';
+  g.beginPath(); g.moveTo(-0.045 * s, hy - 0.09 * s); g.lineTo(0.045 * s, hy - 0.09 * s); g.lineTo(0, hy - 0.2 * s); g.closePath(); g.fill();
+  g.fillStyle = '#5d6c84'; oval(g, 0, hy, 0.125 * s, 0.125 * s); g.fill();
+  g.fillStyle = '#f4f6f9'; oval(g, 0, hy - 0.105 * s, 0.04 * s, 0.024 * s); g.fill();
+  for (const sd of [-1, 1]) {
+    g.fillStyle = '#ff7a2f'; oval(g, sd * 0.085 * s, hy - 0.02 * s, 0.034 * s, 0.034 * s); g.fill();
+    g.fillStyle = '#1d2330'; oval(g, sd * 0.09 * s, hy - 0.024 * s, 0.016 * s, 0.016 * s); g.fill();
+  }
+}
+
+// 비둘기 똥: 하얀 액체가 '찍' 떨어져서 바닥에 퍼지는 모양 (가운데는 회녹색)
+const SPLAT = [[-0.2, -0.06, 0.07], [0.21, 0.04, 0.06], [0.05, -0.15, 0.055], [-0.1, 0.13, 0.05],
+               [0.3, -0.1, 0.03], [-0.3, 0.09, 0.028], [0.15, 0.17, 0.025]];   // [x, y, 반지름] 튄 방울
+function drawPoop(k) {
+  const p = bird.poop, x = X(p.x), y = Y(p.y), s = cell;
+  const t = (k - POOP_START) / (POOP_END - POOP_START);
+  if (t <= 0) return;
+
+  // 1) 떨어지는 방울 세 개 (위에서 아래로 뚝뚝)
+  for (let i = 0; i < 3; i++) {
+    const dt = t * 2.2 - i * 0.35;
+    if (dt <= 0 || dt >= 1) continue;
+    const dy = (1 - dt) * (1 - dt) * s * 0.35;
+    ctx.fillStyle = '#fbfbf6'; ctx.strokeStyle = 'rgba(60,70,60,.35)'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x + (i - 1) * s * 0.05, y - dy - s * 0.09);
+    ctx.quadraticCurveTo(x + (i - 1) * s * 0.05 + s * 0.05, y - dy, x + (i - 1) * s * 0.05, y - dy + s * 0.03);
+    ctx.quadraticCurveTo(x + (i - 1) * s * 0.05 - s * 0.05, y - dy, x + (i - 1) * s * 0.05, y - dy - s * 0.09);
+    ctx.fill(); ctx.stroke();
+  }
+
+  // 2) 바닥에 퍼지는 하얀 자국
+  const g = Math.min(1, Math.max(0, (t - 0.3) / 0.5));
+  if (g <= 0) return;
+  const spread = g < 1 ? g * (1.15 - 0.15 * g) : 1;                  // 철퍽! 하고 살짝 넓게 퍼짐
+  const blob = (ox, oy, r) => { oval(ctx, x + ox * s * spread, y + oy * s * spread, r * s * spread, r * s * spread * 0.8); };
+  ctx.fillStyle = 'rgba(70,80,70,.35)';                              // 테두리(밝은 바닥에서도 보이게)
+  oval(ctx, x, y, s * 0.2 * spread + 1.5, s * 0.14 * spread + 1.5); ctx.fill();
+  for (const [ox, oy, r] of SPLAT) { blob(ox, oy, r + 0.012); ctx.fill(); }
+  ctx.fillStyle = '#fbfbf6';
+  oval(ctx, x, y, s * 0.2 * spread, s * 0.14 * spread); ctx.fill();
+  for (const [ox, oy, r] of SPLAT) { blob(ox, oy, r); ctx.fill(); }
+  ctx.fillStyle = '#6f7a5e';                                         // 가운데 회녹색 덩어리
+  oval(ctx, x + s * 0.03, y - s * 0.01, s * 0.07 * spread, s * 0.05 * spread); ctx.fill();
+  ctx.fillStyle = '#4f5944';
+  oval(ctx, x + s * 0.05, y - s * 0.02, s * 0.03 * spread, s * 0.022 * spread); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.9)';                            // 촉촉한 반짝임
+  oval(ctx, x - s * 0.09 * spread, y - s * 0.05 * spread, s * 0.04 * spread, s * 0.018 * spread); ctx.fill();
+
+  if (k > POOP_START && k < POOP_END + 0.8) {                         // '뿌직!' 글씨
+    const a = Math.min(1, (POOP_END + 0.8 - k) * 3), rise = (k - POOP_START) * cell * 0.25;
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.font = `${Math.round(cell * 0.36)}px Jua, 'Apple SD Gothic Neo', sans-serif`;
+    ctx.textAlign = 'center'; ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(3, cell * 0.08); ctx.strokeStyle = '#1d2330'; ctx.fillStyle = '#ffd166';
+    ctx.strokeText('뿌직!', X(bird.x), Y(bird.y) - cell * 0.55 - rise);
+    ctx.fillText('뿌직!', X(bird.x), Y(bird.y) - cell * 0.55 - rise);
+    ctx.restore();
+  }
+}
+
+function drawBird() {
+  const x = X(bird.x), y = Y(bird.y);
+  let lift = bird.hop ? Math.sin(Math.PI * Math.min(1, bird.ht)) : 0, flap = lift, scale = 1, spin = 0, shake = 0;
+  let bob = bird.hop ? 0 : Math.pow(Math.max(0, Math.sin(time * 7)), 3) * cell * 0.03;   // 고개 까딱
+  if (bird.dead) {
+    const k = time - deadAt;
+    drawPoop(k);
+    if (k > POOP_START && k < POOP_END) shake = Math.sin(k * 90) * cell * 0.03;   // 힘주며 부르르
+    if (bird.dead === 'water') {
+      scale = Math.max(0, 1 - Math.max(0, k - POOP_END) / 0.3);                // 다 싸고 나서 가라앉음
+      ctx.strokeStyle = `rgba(255,255,255,${Math.max(0, 0.8 - k)})`; ctx.lineWidth = cell * 0.05;
+      oval(ctx, x, y, cell * (0.2 + k * 0.7), cell * (0.14 + k * 0.45)); ctx.stroke();
+    } else { spin = Math.min(0.8, k * 6); flap = 0.9; bob = 0; }
+    if (scale <= 0) return;
+  }
+  ctx.fillStyle = 'rgba(0,0,0,.2)';
+  oval(ctx, x, y + cell * 0.1, cell * 0.25 * (1 - 0.2 * lift) * scale, cell * 0.2 * (1 - 0.2 * lift) * scale); ctx.fill();
+  ctx.save();
+  ctx.translate(x + shake, y - lift * cell * 0.2);
+  ctx.rotate(bird.face * Math.PI / 2 + spin);
+  ctx.scale(1.2 * scale * (1 + 0.12 * lift), 1.2 * scale * (1 + 0.12 * lift));
+  drawPigeon(ctx, cell, flap, bob);
+  ctx.restore();
+}
+
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#1d2330'; ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(X(-half - 0.5), 0, (2 * half + 1) * cell, H); ctx.clip();   // 놀이판 밖은 가림
+  ctx.lineCap = 'round';
+
+  const r0 = Math.floor(cam) - 1, r1 = Math.ceil(cam + H / cell) + 1;
+  for (let r = r1; r >= r0; r--) { const row = rows.get(r); if (row) drawGround(row); }
+
+  const birdRow = Math.round(bird.y);
+  for (let r = r1; r >= r0; r--) {                            // 먼 줄부터 가까운 줄 순서로
+    const row = rows.get(r);
+    if (row) {
+      if (row.type === 'river') for (const it of row.items) drawLog(it, row);
+      if (row.crumb !== null) drawCrumb(row);
+      if (row.type === 'road') for (const it of row.items) drawCar(it, row);
+      if (row.type === 'rail') drawRail(row);
+      if (row.type === 'grass') for (const c of row.trees) if (Math.abs(c) <= half + 1) drawTree(c, r);
+    }
+    if (r === birdRow) drawBird();
+  }
+
+  for (const p of particles) {
+    ctx.save(); ctx.globalAlpha = 1 - p.t / p.life;
+    ctx.translate(X(p.x), Y(p.y)); ctx.rotate(p.rot); ctx.fillStyle = p.color;
+    p.wet ? oval(ctx, 0, 0, cell * 0.06, cell * 0.06) : oval(ctx, 0, 0, cell * 0.11, cell * 0.045);
+    ctx.fill(); ctx.restore();
+  }
+  ctx.restore();
+}
+
+// ---------- 화면 글자 / 카드 ----------
+const $ = id => document.getElementById(id);
+const overlay = $('overlay'), startBtn = $('startBtn'), muteBtn = $('mute');
+const mascot = $('mascot'), mctx = mascot.getContext('2d');
+
+function updateHud() { $('score').textContent = score; $('crumbN').textContent = crumbs; }
+
+function showOver() {
+  $('ovEyebrow').textContent = '게임 오버';
+  $('ovTitle').textContent = REASON[bird.dead];
+  $('ovBody').innerHTML =
+    (bird.newBest ? '<p class="new">신기록이에요!</p>' : '') +
+    `<div class="result"><div><b>${score}</b><span>이번 점수</span></div>` +
+    `<div><b>${best}</b><span>최고 기록</span></div>` +
+    `<div><b>${crumbs}</b><span>빵 부스러기</span></div></div>`;
+  startBtn.textContent = '다시 하기';
+  overlay.classList.add('over');
+  overlay.hidden = false; startBtn.focus();
+}
+
+// ---------- 상점 / 스킨 창 ----------
+// 나중에 상품·스킨을 만들면 아래 배열에 넣으면 돼요. 예) { id: 'gold', name: '황금 비둘기' }
+const SHOP_ITEMS = [];
+const SKINS = [];
+
+const panel = $('panel'), panelBody = $('panelBody');
+let panelOpener = null;
+
+function openPanel(kind, opener) {
+  const shop = kind === 'shop', list = shop ? SHOP_ITEMS : SKINS;
+  $('panelTitle').textContent = shop ? '상점' : '스킨 고르기';
+  panelBody.innerHTML = list.length
+    ? '<div class="items">' + list.map(it => `<button data-id="${it.id}">${it.name}</button>`).join('') + '</div>'
+    : `<div class="empty"><b>${shop ? '아직 파는 물건이 없어요' : '아직 스킨이 없어요'}</b>곧 추가될 예정이에요!</div>`;
+  panelOpener = opener;
+  panel.hidden = false;
+  $('panelClose').focus();
+}
+function closePanel() {
+  panel.hidden = true;
+  if (panelOpener) panelOpener.focus();
+}
+$('shopBtn').addEventListener('click', e => openPanel('shop', e.currentTarget));
+$('skinBtn').addEventListener('click', e => openPanel('skin', e.currentTarget));
+$('panelClose').addEventListener('click', closePanel);
+panel.addEventListener('click', e => { if (e.target === panel) closePanel(); });   // 바깥 누르면 닫힘
+
+function drawMascot() {
+  mctx.setTransform(1, 0, 0, 1, 0, 0); mctx.clearRect(0, 0, 208, 208);
+  mctx.fillStyle = '#a5d46a'; oval(mctx, 104, 104, 96, 96); mctx.fill();
+  mctx.fillStyle = 'rgba(0,0,0,.15)'; oval(mctx, 104, 128, 50, 38); mctx.fill();
+  mctx.translate(104, 112);
+  const k = Math.max(0, Math.sin(time * 3));
+  drawPigeon(mctx, 190, k * k * 0.5, Math.pow(Math.max(0, Math.sin(time * 7)), 3) * 5);
+}
+
+function startGame() {
+  if (state === 'dead' && !overShown) return;
+  audioOn();
+  reset(); state = 'play';
+  overlay.hidden = true; startBtn.blur();
+}
+startBtn.addEventListener('click', startGame);
+
+// ---------- 소리 (파일 없이 브라우저에서 바로 합성) ----------
+let ac = null, muted = false;
+try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch (e) {}
+muteBtn.classList.toggle('muted', muted);
+
+function audioOn() {
+  try {
+    if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') ac.resume();
+  } catch (e) { ac = null; }
+}
+function tone(f, d, type, v, f2) {
+  if (muted || !ac) return;
+  const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
+  g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + d);
+}
+// 바삭 소리: 아주 짧은 '치익' 잡음을 높은 소리만 남겨서 여러 번 빠르게 냄
+let noiseBuf = null;
+function crunch(at, d, v, freq) {
+  if (muted || !ac) return;
+  if (!noiseBuf) {
+    noiseBuf = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.2), ac.sampleRate);
+    const ch = noiseBuf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+  }
+  const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(), t = ac.currentTime + at;
+  src.buffer = noiseBuf;
+  f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = 1.2;
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.003);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  src.connect(f); f.connect(g); g.connect(ac.destination);
+  src.start(t, Math.random() * 0.1); src.stop(t + d);
+}
+const sfx = {
+  hop: () => tone(500 + Math.random() * 60, 0.07, 'triangle', 0.09, 760),
+  crumb: () => {                                               // 바삭바삭 (두 번 씹는 소리)
+    let at = 0;
+    for (let bite = 0; bite < 2; bite++) {
+      for (let i = 0; i < 4; i++) {
+        crunch(at, rand(0.025, 0.05), rand(0.25, 0.4), rand(2500, 5000));
+        at += rand(0.015, 0.03);
+      }
+      at += 0.08;
+    }
+  },
+  die: () => tone(330, 0.45, 'sawtooth', 0.07, 60),
+  splash: () => tone(700, 0.35, 'sine', 0.1, 120),
+  poop: () => {                                                // 뿌직~ (낮은 소리 세 번)
+    tone(140, 0.12, 'sawtooth', 0.09, 90);
+    setTimeout(() => tone(120, 0.12, 'sawtooth', 0.09, 80), 130);
+    setTimeout(() => tone(100, 0.22, 'sawtooth', 0.1, 50), 260);
+  }
+};
+muteBtn.addEventListener('click', () => {
+  muted = !muted; muteBtn.classList.toggle('muted', muted); muteBtn.blur();
+  try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch (e) {}
+});
+
+// ---------- 입력 ----------
+// e.code 를 써서 한글 입력 상태(ㅈ/ㅁ/ㄴ/ㅇ)에서도 WASD가 먹히게 함
+const KEYS = {
+  ArrowUp: [0, 1], KeyW: [0, 1], Space: [0, 1],
+  ArrowDown: [0, -1], KeyS: [0, -1],
+  ArrowLeft: [-1, 0], KeyA: [-1, 0],
+  ArrowRight: [1, 0], KeyD: [1, 0]
+};
+addEventListener('keydown', e => {
+  if (!panel.hidden) {                                        // 창이 열려 있으면 Esc로 닫기만
+    if (e.code === 'Escape') closePanel();
+    return;
+  }
+  if (state !== 'play') {
+    if (e.target.closest && e.target.closest('.corner')) return;   // 상점/스킨 버튼에서 누른 Enter는 그 버튼용
+    if ((e.code === 'Enter' || e.code === 'Space') && !e.repeat) { e.preventDefault(); startGame(); }
+    return;
+  }
+  const m = KEYS[e.code];
+  if (m) { e.preventDefault(); tryMove(m[0], m[1]); }
+});
+
+let press = null;
+cv.addEventListener('pointerdown', e => { press = { x: e.clientX, y: e.clientY }; });
+addEventListener('pointercancel', () => { press = null; });
+addEventListener('pointerup', e => {
+  if (!press) return;
+  const dx = e.clientX - press.x, dy = e.clientY - press.y, ax = Math.abs(dx), ay = Math.abs(dy);
+  press = null;
+  if (Math.max(ax, ay) < 22) tryMove(0, 1);                   // 톡 = 앞으로
+  else if (ax > ay) tryMove(Math.sign(dx), 0);                // 좌우로 밀기
+  else tryMove(0, dy < 0 ? 1 : -1);                           // 위아래로 밀기
+});
+addEventListener('contextmenu', e => e.preventDefault());
+
+// ---------- 시작 ----------
+let last = 0;
+function frame(t) {
+  const dt = Math.min(0.05, (t - last) / 1000 || 0); last = t;
+  update(dt); draw();
+  if (!overlay.hidden) drawMascot();
+  requestAnimationFrame(frame);
+}
+resize(); reset();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
