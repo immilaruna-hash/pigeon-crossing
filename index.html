@@ -46,6 +46,8 @@
   #mascot{width:104px;height:104px;margin:-4px auto 2px;display:block}
   .eyebrow{margin:0;font-size:13px;font-weight:700;letter-spacing:.12em;color:var(--accent-dark)}
   h1{margin:4px 0 14px;font-family:var(--title);font-weight:400;font-size:34px;line-height:1.15;word-break:keep-all}
+  .records{margin:-6px 0 14px;font-size:14px;color:var(--muted)}
+  .records b{color:var(--ink)}
   .how{margin:0 0 18px;padding:0;list-style:none;text-align:left;font-size:15px;line-height:1.5;word-break:keep-all}
   .how li{display:flex;gap:10px;padding:9px 2px;border-top:2px dashed var(--line)}
   .how li:last-child{border-bottom:2px dashed var(--line)}
@@ -119,6 +121,7 @@
     <canvas id="mascot" width="208" height="208"></canvas>
     <p class="eyebrow" id="ovEyebrow">도시 비둘기의 대모험</p>
     <h1 id="ovTitle">구구! 길 건너기</h1>
+    <p class="records" id="records"></p>
     <div id="ovBody">
       <ul class="how">
         <li><b>키보드</b><span>방향키 / WASD</span></li>
@@ -162,7 +165,7 @@
 const TRACK = 12;        // 차·통나무가 도는 구간 (x = -12 ~ 12, 화면 밖에서 돌아옴)
 const MAX_HALF = 6;      // 가운데에서 양옆으로 최대 몇 칸까지 보여줄지
 const HOP_TIME = 0.1;    // 한 칸 뛰는 데 걸리는 시간(초)
-const BEST_KEY = 'googoo-best', MUTE_KEY = 'googoo-mute';
+const BEST_KEY = 'googoo-best', MUTE_KEY = 'googoo-mute', CRUMB_KEY = 'googoo-crumbs';
 const POOP_START = 0.12, POOP_END = 0.7;   // 죽은 뒤 똥 싸기 시작/끝 시간(초)
 
 const CAR_COLORS = ['#ff6b6b', '#ffd166', '#4dabf7', '#b197fc', '#ffa94d', '#63e6be'];
@@ -208,7 +211,10 @@ let bird, cam = -3, score = 0, crumbs = 0, best = 0;
 let state = 'ready';     // ready(대기) | play(진행) | dead(끝)
 let started = false, time = 0, deadAt = 0, overShown = false, particles = [];
 
-try { best = Number(localStorage.getItem(BEST_KEY)) || 0; } catch (e) {}
+let totalCrumbs = 0, runStartBest = 0;   // 지금까지 모은 빵(누적), 이번 판 시작할 때의 최고 기록
+// 기록은 브라우저(localStorage)에 저장돼서 새로고침해도 남아요
+try { best = Number(localStorage.getItem(BEST_KEY)) || 0; totalCrumbs = Number(localStorage.getItem(CRUMB_KEY)) || 0; } catch (e) {}
+function save(key, value) { try { localStorage.setItem(key, String(value)); } catch (e) {} }
 
 const level = () => Math.min(1, Math.max(0, topRow) / 160);   // 0 → 1 로 점점 어려워짐
 
@@ -338,9 +344,10 @@ function land() {
   } else bird.x = Math.round(bird.x);
 
   if (row.crumb !== null && row.crumb === Math.round(bird.x)) {
-    row.crumb = null; crumbs++; sfx.crumb();
+    row.crumb = null; crumbs++; totalCrumbs++; save(CRUMB_KEY, totalCrumbs); sfx.crumb();
   }
   if (bird.row > score) score = bird.row;
+  if (score > best) { best = score; save(BEST_KEY, best); }       // 게임 중에도 바로 저장
   updateHud();
   if (bird.queue) { const q = bird.queue; bird.queue = null; tryMove(q[0], q[1]); }
 }
@@ -359,8 +366,7 @@ function die(reason) {
     color: wet ? pick(['#e3f6fe', '#b9e6f8']) : pick(['#aab5c4', '#93a0b2', '#e2e7ee', '#5d6c84'])
   });
   wet ? sfx.splash() : sfx.die();
-  bird.newBest = score > best;
-  if (bird.newBest) { best = score; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
+  bird.newBest = score > runStartBest;
   onGameOver(score, crumbs);
 }
 
@@ -699,6 +705,7 @@ function showOver() {
     `<div class="result"><div><b>${score}</b><span>이번 점수</span></div>` +
     `<div><b>${best}</b><span>최고 기록</span></div>` +
     `<div><b>${crumbs}</b><span>빵 부스러기</span></div></div>`;
+  $('records').innerHTML = `지금까지 모은 빵 <b>${totalCrumbs}</b>개`;
   startBtn.textContent = '다시 하기';
   overlay.classList.add('over');
   overlay.hidden = false; startBtn.focus();
@@ -743,7 +750,7 @@ function drawMascot() {
 function startGame() {
   if (state === 'dead' && !overShown) return;
   audioOn();
-  reset(); state = 'play';
+  reset(); state = 'play'; runStartBest = best;
   overlay.hidden = true; startBtn.blur();
 }
 startBtn.addEventListener('click', startGame);
@@ -853,6 +860,7 @@ function frame(t) {
   requestAnimationFrame(frame);
 }
 resize(); reset();
+$('records').innerHTML = `최고 기록 <b>${best}</b> · 모은 빵 <b>${totalCrumbs}</b>개`;
 requestAnimationFrame(frame);
 </script>
 </body>
